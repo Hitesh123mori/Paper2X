@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 # from langchain.document_loaders import PyMuPDFLoader
 from typing import List, Dict, Any, Optional
-import fitz
+import pymupdf as fitz
 from pydantic import BaseModel, Field
 load_dotenv()
 os.environ["LANGMSTIH_TRACING"] = "true"
