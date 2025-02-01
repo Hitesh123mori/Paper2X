@@ -124,6 +124,7 @@ yarl = "==1.18.3"
 frontend = "*"
 pymupdf = "*"
 fal-client = "*"
+edge-tts = "*"
 
 [dev-packages]
 ipykernel = "*"

@@ -14,6 +14,9 @@ from pptx import Presentation
 from pptx.util import Pt, Inches
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
 from pptx.dml.color import RGBColor
+import json
+import edge_tts
+import asyncio
 
 
 class ThemeConfig:
@@ -99,60 +102,122 @@ def concatenate_audio_wave(audio_clip_paths, output_path):
     output.close()
 
 
+async def save_text_to_mp3(text: str, voice: str, filename: str):
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(filename)
+
+
 @app.route("/generate-audio", methods=["POST"])
 def generate_audio():
     if request.method == "POST":
-        # req = request.get_json()
-        # dialogues = req.get("dialogues")
-        # random_hex = random.randint(1, 99999)
-        # seq_number = 0
-        # for dialogue in dialogues:
-        #     speaker = list(dialogue.keys())[0]
-        #     filename = f"audio/{random_hex}_{str(seq_number).zfill(5) }.mp3"
+        male_voice = "en-US-AndrewNeural"
+        female_voice = "en-US-EmmaMultilingualNeural"
 
-        #     if speaker == "katherine":
-        #         engine.setProperty("voice", FEMALE_VOICE)
-        #         engine.save_to_file(dialogue[speaker], filename)
-        #         engine.runAndWait()
-        #     else:
-        #         engine.setProperty("voice", MALE_VOICE)
-        #         engine.save_to_file(dialogue[speaker], filename)
-        #         engine.runAndWait()
+        if request.is_json:
+            print(request.json())
+            if "male_voice" in request.json():
+                male_voice = request.json()["male_voice"]
+            if "female_voice" in request.json():
+                female_voice = request.json()["female_voice"]
 
-        #     seq_number += 1
+        for file_name in request.files:
+            file = request.files[file_name]
 
-        # filename = f"audio/merged_{random_hex}.mp3"
-        # files = sorted(list(glob.glob(f"audio/{random_hex}_*")))
+            filename_main = secure_filename(file.filename)
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename_main))
 
-        # zip = zipfile.ZipFile(
-        #     f"{GENERATED_FOLDER}/{random_hex}.zip", "w", zipfile.ZIP_DEFLATED
-        # )
+            url = " https://mined-2025.onrender.com/generate-ppt/"
+            files = {
+                "file": open(
+                    os.path.join(app.config["UPLOAD_FOLDER"], filename_main), "rb"
+                )
+            }
+            response = requests.post(url, files=files, json={})
+            response = requests.get(
+                f"https://mined-2025.onrender.com/convo/{response.json()["file_id"]}"
+            )
+            structure = response.json()
 
-        # for file in files:
-        #     zip.write(file)
-        #     os.remove(file)
+            order = structure["order"]
+            katherine = structure["katherine"]
+            clay = structure["clay"]
 
-        # zip.close()
+            dialogues = []
+            kat_index = 0
+            clay_index = 0
+            index = 0
 
-        # return_data = io.BytesIO()
-        # with open(f"{GENERATED_FOLDER}/{random_hex}.zip", "rb") as fo:
-        #     return_data.write(fo.read())
-        # return_data.seek(0)
+            while (
+                index < len(order)
+                and kat_index < len(katherine)
+                and clay_index < len(clay)
+            ):
+                speaker = order[index]
+                if speaker == "katherine":
+                    dialogues.append({"katherine": katherine[kat_index]})
+                    kat_index += 1
+                else:
+                    dialogues.append({"clay": clay[clay_index]})
+                    clay_index += 1
+                index += 1
 
-        # return send_file(
-        #     return_data,
-        #     mimetype="application/zip",
-        # )
+            random_hex = random.randint(1, 99999)
+            seq_number = 0
+            response_api = {"dials": []}
+            for dialogue in dialogues:
+                speaker = list(dialogue.keys())[0]
+                filename = f"audio/{random_hex}_{str(seq_number).zfill(5) }.mp3"
+                # print(speaker, dialogue[speaker]["text"])
+                if speaker == "katherine":
+                    asyncio.run(
+                        save_text_to_mp3(
+                            dialogue[speaker]["text"], female_voice, filename
+                        )
+                    )
+                    return_data = io.BytesIO()
+                    with open(filename, "rb") as fo:
+                        return_data.write(fo.read())
+                    return_data.seek(0)
+                    response_api["dials"].append({speaker: str(return_data.read())})
+                else:
+                    asyncio.run(
+                        save_text_to_mp3(
+                            dialogue[speaker]["text"], male_voice, filename
+                        )
+                    )
+                    return_data = io.BytesIO()
+                    with open(filename, "rb") as fo:
+                        return_data.write(fo.read())
+                    return_data.seek(0)
+                    response_api["dials"].append({speaker: str(return_data.read())})
 
-        return_data = io.BytesIO()
-        with open(f"{GENERATED_FOLDER}/{"25579"}.zip", "rb") as fo:
-            return_data.write(fo.read())
-        return_data.seek(0)
+                seq_number += 1
 
-        return send_file(
-            return_data,
-            mimetype="application/zip",
-        )
+            return jsonify(response_api)
+            # filename = f"audio/merged_{random_hex}.mp3"
+            # files = sorted(list(glob.glob(f"audio/{random_hex}_*")))
+
+            # zip = zipfile.ZipFile(
+            #     f"{GENERATED_FOLDER}/{random_hex}.zip", "w", zipfile.ZIP_DEFLATED
+            # )
+
+            # for file in files:
+            #     zip.write(file)
+            #     os.remove(file)
+
+            # zip.close()
+
+            # return_data = io.BytesIO()
+            # with open(f"{GENERATED_FOLDER}/{random_hex}.zip", "rb") as fo:
+            #     return_data.write(fo.read())
+            # return_data.seek(0)
+
+            # os.remove(os.path.join(app.config["UPLOAD_FOLDER"], filename_main))
+
+            # return send_file(
+            #     return_data,
+            #     mimetype="application/zip",
+            # )
 
 
 def apply_background(slide, color):
@@ -369,52 +434,50 @@ def hello():
 @app.route("/generate-ppt", methods=["POST"])
 def generate_ppt():
     if request.method == "POST":
-        # for file_name in request.files:
-        #     print("HERE")
-        #     file = request.files[file_name]
 
-        #     print(file.filename)
+        for file_name in request.files:
+            file = request.files[file_name]
+            filename_main = secure_filename(file.filename)
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename_main))
 
-        #     filename = secure_filename(file.filename)
-        #     file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+            url = "https://mined-2025.onrender.com/generate-ppt/"
+            files = {
+                "file": open(
+                    os.path.join(app.config["UPLOAD_FOLDER"], filename_main), "rb"
+                )
+            }
 
-        #     url = "http://172.20.10.2:8000/generate-ppt"
-        #     files = {
-        #         "file": open(os.path.join(app.config["UPLOAD_FOLDER"], filename), "rb")
-        #     }
+            response = requests.post(url, files=files, json={})
 
-        #     random_hex = random.randint(1, 999999)
+            print(response.raw)
+            print("POST DONE", response.json())
 
-        #     response = requests.post(url, files=files)
-        #     structure = response.json()
+            response = requests.get(
+                f"https://mined-2025.onrender.com/ppt/{response.json()["file_id"]}"
+            )
 
-        #     print(structure)
+            structure = response.json()
 
-        #     create_ppt_from_dict(
-        #         structure,
-        #         image_mapping=[],
-        #         theme_name="modern",
-        #         output_file=f"{GENERATED_FOLDER}/{random_hex}.pptx",
-        #     )
+            print(structure)
 
-        #     return_data = io.BytesIO()
-        #     with open(f"{GENERATED_FOLDER}/{random_hex}.pptx", "rb") as fo:
-        #         return_data.write(fo.read())
-        #     return_data.seek(0)
+            random_hex = random.randint(1, 999999)
 
-        #     return send_file(
-        #         return_data,
-        #         mimetype="application/msword",
-        #     )
-        return_data = io.BytesIO()
-        with open(f"{GENERATED_FOLDER}/{"920087"}.pptx", "rb") as fo:
-            return_data.write(fo.read())
-        return_data.seek(0)
+            create_ppt_from_dict(
+                structure,
+                image_mapping=[],
+                theme_name="modern",
+                output_file=f"{GENERATED_FOLDER}/{random_hex}.pptx",
+            )
 
-        return send_file(
-            return_data,
-            mimetype="application/msword",
-        )
+            return_data = io.BytesIO()
+            with open(f"{GENERATED_FOLDER}/{random_hex}.pptx", "rb") as fo:
+                return_data.write(fo.read())
+            return_data.seek(0)
+
+            return send_file(
+                return_data,
+                mimetype="application/msword",
+            )
 
 
 @app.route("/convert-pdf", methods=["POST"])
