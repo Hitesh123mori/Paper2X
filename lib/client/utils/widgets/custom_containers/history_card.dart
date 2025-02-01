@@ -1,12 +1,15 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mined_2025/client/models/response_model.dart';
+import 'package:mined_2025/client/pages/home_page/pod_cast_part.dart';
 import 'package:mined_2025/client/utils/theme/theme.dart';
 
 class HistoryCard extends StatefulWidget {
-  final String data;
+  final ResponseModel response;
   final VoidCallback onTap ;
   final VoidCallback onRemove;
-  const HistoryCard({super.key, required this.data, required this.onTap, required this.onRemove});
+  const HistoryCard({super.key, required this.onTap, required this.onRemove, required this.response});
 
   @override
   State<HistoryCard> createState() => _HistoryCardState();
@@ -46,12 +49,7 @@ class _HistoryCardState extends State<HistoryCard> {
                   children: [
                     SizedBox(width: 5),
                     Flexible(
-                    child: Text(
-                      widget.data,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: GoogleFonts.poppins(fontSize: 13),
-                     ),
+                      child:Text("demo"),
                    ),
                     // if(isHover)
                     //   IconButton(

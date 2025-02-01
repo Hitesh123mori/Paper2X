@@ -41,7 +41,7 @@ class _MyWebsiteState extends State<MyWebsite> {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'Paper2X',
       theme: ThemeData(
         useMaterial3: true,
       ),

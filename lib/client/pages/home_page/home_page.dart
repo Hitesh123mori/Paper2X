@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:html' as html;
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mined_2025/client/apis/init/config.dart';
 import 'package:mined_2025/client/helper_functions/toasts.dart';
+import 'package:mined_2025/client/models/response_model.dart';
 import 'package:mined_2025/client/pages/home_page/pod_cast_part.dart';
 import 'package:mined_2025/client/providers/bucket_provider.dart';
 import 'package:mined_2025/client/providers/user_provider.dart';
@@ -30,8 +34,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
 
   bool _isSidebarExpanded = true;
-  String currentChatData = '';
-  List<String> chatHistory = [];
+  ResponseModel responseModel  = ResponseModel(files: [],summary: "",ppt: "");
+  List<ResponseModel> chatHistory = [];
 
   void init(WebUserProvider webUserProvider) async {
     await webUserProvider.initUser();
@@ -43,22 +47,14 @@ class _HomePageState extends State<HomePage> {
   String? fileName;
   Uint8List? fileBytes;
   FilePickerResult? pdf;
+  Uint8List? pptBytes;
+  Map<String, dynamic> personBytesMap = {};
 
-  List<String> extractedFiles = [];
 
+  List<String> _extractedFiles = [];
 
-  Future<void> pickAndUnzipFile() async {
-    // Pick the zip file
-    final result = await FilePicker.platform.pickFiles(
-      allowedExtensions: ['zip'],
-      type: FileType.custom,
-    );
-
-    if (result == null) return;
-
-    final bytes = result.files.single.bytes;
-
-    final archive = ZipDecoder().decodeBytes(bytes!);
+  Future<void> extractZip(Uint8List zipBytes) async {
+    final archive = ZipDecoder().decodeBytes(zipBytes);
 
     List<String> extractedFiles = [];
 
@@ -68,6 +64,7 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
+    // Sorting numerically (if filenames contain numbers)
     extractedFiles.sort((a, b) {
       final aNum = int.tryParse(RegExp(r'\d+').firstMatch(a)?.group(0) ?? '0');
       final bNum = int.tryParse(RegExp(r'\d+').firstMatch(b)?.group(0) ?? '0');
@@ -75,8 +72,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     setState(() {
-      extractedFiles = extractedFiles;
-
+      _extractedFiles = extractedFiles;
     });
 
     if (extractedFiles.isEmpty) {
@@ -88,6 +84,12 @@ class _HomePageState extends State<HomePage> {
         SnackBar(content: Text('${extractedFiles.length} audio file(s) extracted')),
       );
     }
+
+    ResponseModel rm = ResponseModel(files: extractedFiles, summary: "", ppt: "");
+    setState(() {
+      chatHistory.add(rm);
+      responseModel = rm;
+    });
   }
 
   Future<void> takePdf() async {
@@ -102,8 +104,8 @@ class _HomePageState extends State<HomePage> {
           "Success",
           "Pdf Successfully Uploaded",
           Icon(
-            Icons.error_outline_rounded,
-            color: Colors.red,
+            Icons.check_circle_outline,
+            color: Colors.green,
           ),
           context);
 
@@ -114,75 +116,114 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> downloadPpt(Uint8List pptBytes, String fileName) async {
+    try {
+      // Create a Blob from the bytes
+      final blob = html.Blob([pptBytes]);
+
+      // Create an object URL for the Blob
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      // Create an anchor element and set the download attributes
+      final anchor = html.AnchorElement(href: url)
+        ..target = 'blank' // Optional: Opens the file in a new tab (not needed for downloading)
+        ..download = fileName // Sets the name for the downloaded file
+        ..click(); // Simulate the click to start the download
+
+      // Revoke the object URL after use to release resources
+      html.Url.revokeObjectUrl(url);
+    } catch (e) {
+      print("Error downloading ppt: $e");
+    }
+  }
+
   Future<void> sendPDF() async {
 
-    if (pdf != null) {
-      Uint8List? fileBytes = pdf?.files.single.bytes;
+    if (pdf != null && pdf!.files.isNotEmpty) {
+      Uint8List? fileBytes = pdf!.files.single.bytes;
 
       if (fileBytes != null) {
-        final Uri apiUrl = Uri.parse('http://10.3.109.45:5000/convert-pdf');
+
+        final Uri apiUrl = Uri.parse('http://10.3.109.45:5000/generate-audio');
+        final Uri apiUrl2 = Uri.parse('http://10.3.109.45:5000/generate-ppt');
+
 
         var request = http.MultipartRequest('POST', apiUrl)
           ..files.add(http.MultipartFile.fromBytes(
             'file',
             fileBytes,
-            filename: pdf?.files.single.name,
+            filename: pdf!.files.single.name,
           ));
 
-        try {
+        var request2 = http.MultipartRequest('POST', apiUrl2)
+          ..files.add(http.MultipartFile.fromBytes(
+            'file',
+            fileBytes,
+            filename: pdf!.files.single.name,
+          ));
 
+
+        try {
+          //
           var response = await request.send();
 
           if (response.statusCode == 200) {
-            final responseBody = await response.stream.bytesToString();
-            setState(() {
-              _summary = responseBody;
-            });
+
+            var responseData = json.decode(await response.stream.bytesToString());
+
+
+            List<dynamic> dialogList = responseData['dials'];
+
+            for (var dialog in dialogList) {
+              dialog.forEach((key, value) {
+                String cleanedString = value.substring(2, value.length - 1).replaceAll(r'\x', '');
+                Uint8List personBytes = Uint8List.fromList(List<int>.generate(
+                    cleanedString.length ~/ 2,
+                        (i) => int.parse(cleanedString.substring(i * 2, (i + 1) * 2), radix: 16)
+                ));
+                personBytesMap[key] = personBytes;
+              });
+            }
+            print(personBytesMap);
           } else {
-            setState(() {
-              print("#status code ${response.statusCode}");
-            });
+            print("#status code ${response.statusCode}");
           }
+
+          var response2 = await request2.send();
+
+          if (response2.statusCode == 200) {
+            pptBytes = await response2.stream.toBytes();
+            // print(pptBytes);
+          } else {
+            print("#status code ${response2.statusCode}");
+          }
+
         } catch (e) {
-          setState(() {
-            print("#pdf upload error ${e}");
-            WebToasts.showToastification(
-                "Error",
-                "Request Failed",
-                Icon(
-                  Icons.error_outline_rounded,
-                  color: Colors.red,
-                ),
-                context);
-          });
+          print("#pdf upload error: $e");
+          WebToasts.showToastification(
+            "Error",
+            "Request Failed",
+            const Icon(Icons.error_outline_rounded, color: Colors.red),
+            context,
+          );
         }
       } else {
-        setState(() {
-          // _summary = 'Error: No file bytes received';
-          WebToasts.showToastification(
-              "Upload PDF Error",
-              "No file bytes received",
-              Icon(
-                Icons.error_outline_rounded,
-                color: Colors.red,
-              ),
-              context);
-        });
+        WebToasts.showToastification(
+          "Upload PDF Error",
+          "No file bytes received",
+          const Icon(Icons.error_outline_rounded, color: Colors.red),
+          context,
+        );
       }
     } else {
-      setState(() {
-        WebToasts.showToastification(
-            "Upload PDF Error",
-            "No file selected",
-            Icon(
-              Icons.error_outline_rounded,
-              color: Colors.red,
-            ),
-            context);
-      });
+      WebToasts.showToastification(
+        "Upload PDF Error",
+        "No file selected",
+        const Icon(Icons.error_outline_rounded, color: Colors.red),
+        context,
+      );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -221,10 +262,7 @@ class _HomePageState extends State<HomePage> {
                                 child: GestureDetector(
                                   onTap: () {
                                     setState(() {
-                                      chatHistory
-                                          .add('Hello, how can I help you?');
-                                      currentChatData =
-                                          'Hello, how can I help you?';
+                                      chatHistory.add(ResponseModel(files: [],summary: "",ppt: ""));
                                     });
                                   },
                                   child: Container(
@@ -263,10 +301,10 @@ class _HomePageState extends State<HomePage> {
                     itemCount: chatHistory.length,
                     itemBuilder: (context, index) {
                       return HistoryCard(
-                        data: chatHistory[index],
+                        response: chatHistory[index],
                         onTap: () {
                           setState(() {
-                            currentChatData = chatHistory[index];
+                            responseModel = chatHistory[index] ;
                           });
                         },
                         onRemove: () {
@@ -331,24 +369,30 @@ class _HomePageState extends State<HomePage> {
                       ),
                       height:  mq.height * 0.1,
                       child: Center(
-                        child: Text(
-                          "Title : ",
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold, fontSize: 20),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Title : ",
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold, fontSize: 20),
+                              ),
+                            ],
+                          ),
                         ),
                       )  ,
                     ),
                     Expanded(
                       child: Container(
                         child: Center(
-                          child: currentChatData.isEmpty ? Text(
-                              "Select a chat to view or create chat",
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold, fontSize: 20),
-                          ) :   PodCastPart(extractedFiles: extractedFiles,),
+                          child: PodCastPart(extractedFiles: personBytesMap),
                         ),
                       ),
                     ),
+
+
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 100.0, vertical: 20),
@@ -392,8 +436,7 @@ class _HomePageState extends State<HomePage> {
                                           cursor: SystemMouseCursors.click,
                                           child: GestureDetector(
                                             onTap: () async {
-                                              // await takePdf();
-                                              await pickAndUnzipFile();
+                                              await takePdf();
                                             },
                                             child: Container(
                                               // width: 120 ,
@@ -554,8 +597,13 @@ class _HomePageState extends State<HomePage> {
                             children: [
 
                               Image.asset("assets/images/ppt_image.png",height: 50,width: 50,),
-
-
+                              TextButton(onPressed: () {
+                                if (pptBytes != null) {
+                                  downloadPpt(pptBytes!, "paper2x-paper.ppt");
+                                } else {
+                                  print("PPT bytes are null");
+                                }
+                              }, child: Text("Paper.pptx"))
                             ],
 
                           ),

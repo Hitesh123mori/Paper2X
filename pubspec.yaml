@@ -55,8 +55,9 @@ dependencies:
   http: ^1.3.0
   archive: ^4.0.2
   just_audio:
+  dio: ^5.8.0+1
   audio_waveforms: ^1.2.0
-
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:

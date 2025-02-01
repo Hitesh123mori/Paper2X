@@ -154,9 +154,9 @@ class _LandingPageState extends State<LandingPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        HoverCard("Demo", Colors.green, Icons.chat,counter: 1,),
-                        HoverCard("Demo", Colors.deepPurple, Icons.picture_as_pdf_outlined,counter: 2,),
-                        HoverCard("Demo", Colors.pinkAccent, Icons.video_camera_back_outlined,counter: 3,),
+                        HoverCard("Podcast", Colors.green, Icons.chat,counter: 1, text: 'Generate a personal podcast from research paper',),
+                        HoverCard("Summary", Colors.deepPurple, Icons.picture_as_pdf_outlined,counter: 2, text: 'Get an extract summary of your paper.',),
+                        HoverCard("PPT", Colors.pinkAccent, Icons.video_camera_back_outlined,counter: 3, text: 'Presentation from your research paper.',),
                       ],
                     ),
                   ],

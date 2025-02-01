@@ -7,8 +7,10 @@ class HoverCard extends StatefulWidget {
   final Color color;
   final IconData icon;
   final int counter;
+  final String text;
 
-  HoverCard(this.title, this.color, this.icon, {this.counter = 0});
+
+  HoverCard(this.title, this.color, this.icon, {this.counter = 0, required this.text});
 
   @override
   _HoverCardState createState() => _HoverCardState();
@@ -80,7 +82,7 @@ class _HoverCardState extends State<HoverCard> {
                     SizedBox(height: 20),
                     Flexible(
                       child: Text(
-                        "Lorem Ipsum is simply dummy text of the printing and typesetting industry. ",
+                        widget.text,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: isHovered ? widget.color : Colors.black,
