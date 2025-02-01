@@ -21,6 +21,10 @@ class PPTResponse(BaseModel):
     institution: str
     slides: list[dict[str, Any]]
 
+@app.get("/")
+def read_root():
+    return {"message": "Hello, World!"}
+
 @app.post("/generate-ppt")
 def generate_ppt(file: UploadFile = File(...)):
     """Endpoint to process a PDF file and generate structured PPT content."""
@@ -37,9 +41,7 @@ def generate_ppt(file: UploadFile = File(...)):
         # Run the graph workflow
         result: Dict[str, Any] = graph.invoke(state)
         print("Graph invocation result:", result)
-        print(result.keys())
-        print(result.get("convo"))
-
+       
         # Store results using the unique ID
         processed_results[file_id] = result
         
@@ -89,4 +91,4 @@ def get_convo(file_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
