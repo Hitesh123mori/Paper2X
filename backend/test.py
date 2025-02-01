@@ -1,28 +1,19 @@
-import matplotlib.pyplot as plt
+import edge_tts
+import asyncio
 
-# Data
-models = [
-    "ECG-TX",
-    "2x Layer BI-LSTM [8]",
-    "CAA-TL (AlexNet) [9]",
-    "CAA-TL (SqueezeNet) [9]",
-    "CAA-TL (ResNet50) [9]",
-    "SRCNN [13]",
-]
-accuracy = [99.98, 93.9, 98.38, 90.08, 91, 87.5]
+text = """
+I’ve been exploring various research topics lately, particularly in the fields of deep learning and NLP. For my image classification project, I’ve been working with a pre-trained ResNet18 model on the CIFAR-10 dataset, which has shown significant performance improvements as mentioned in several papers. I’m also diving into U-Net for image segmentation tasks, especially for medical imaging applications like tumor detection, which uses its encoder-decoder structure with skip connections. On the NLP side, I'm deploying a BERT-based model for sentiment analysis of IMDb reviews on Google Cloud Platform. It's a bit tricky integrating everything with Flask, but I've seen papers that use services like Vertex AI to scale models efficiently, and I'm considering looking into that for future deployments.
+"""
+male_voice = "en-US-AndrewNeural"
+female_voice = "en-US-EmmaMultilingualNeural"
+text_to_tts = "Hello World"
 
-# Plot
-plt.figure(figsize=(6, 4))  # Reduce figure size
-bars = plt.bar(models, accuracy, color="blue")
-plt.ylabel("Accuracy (%)")
-plt.xlabel("Models")
-plt.ylim(85, 100)  # Set y-axis limits for better visualization
-plt.xticks(rotation=30, ha="right")  # Adjust rotation to prevent overlap
 
-# Add accuracy labels
-for bar, acc in zip(bars, accuracy):
-    plt.text(bar.get_x() + bar.get_width() / 2, acc + 0.3, f"{acc:.2f}%", ha="center")
+async def amain(text: str):
+    communicate = edge_tts.Communicate(text, female_voice)
+    await communicate.save("text.mp3")
+    print("Done")
 
-# Save figure
-plt.savefig("model_accuracy.png", dpi=400, bbox_inches="tight", pad_inches=0.1)
-plt.show()
+
+asyncio.run(amain(text=text))
+print("Finished")
