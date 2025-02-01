@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
 import pymupdf as fitz
 from pydantic import BaseModel, Field
+import re
 load_dotenv()
 os.environ["LANGMSTIH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = f"Deployed MineD 2025"
@@ -51,6 +52,12 @@ class ResPaperExtractState(TypedDict):
     ppt_object: PPTPresentation
     summary_text: Optional[str] = None
     convo: Conversation = None
+
+def clean_markdown_output(llm_out: str) -> str:
+    # Remove leading and trailing triple backticks if present
+    if not isinstance(llm_out, str):
+        llm_out = str(llm_out.content)  # Extract string content from AIMessage
+    return re.sub(r"^```(?:json)?\n?|```$", "", llm_out.strip())
 
 def load_pdf(state: ResPaperExtractState):
     pdf_path = state["pdf_path"]
@@ -150,6 +157,8 @@ def generate_conversation(state: ResPaperExtractState):
     - Make sure that the both the persons are not inventing anything of their own, nor should they give any wrong information.
     - Don't give a name to this podcast
     - If a particular entity or its name can't be inferred, don't mention them as placeholders in the conversation
+    -  Do not format the output in markdown, do not use triple backticks (` ``` `) or JSON code blocks.
+    Ensure that the response is a valid JSON object that follows the expected schema.
 
         {format_instructions}
     """
@@ -158,16 +167,19 @@ def generate_conversation(state: ResPaperExtractState):
 # Human Message: Supplies extracted text from the research paper
     human_message_podcast = HumanMessagePromptTemplate.from_template("Here is the summary of research paper:\n\n{summary_text}. \nMake sure the tone is {tone}")
 
-    parser_podcast = JsonOutputParser(pydantic_object=Conversation)
+    parser = JsonOutputParser(pydantic_object=Conversation)
     # Combine into a structured chat prompt
     chat_prompt_podcast = ChatPromptTemplate(
         messages=[system_message_podcast, human_message_podcast],
-        partial_variables={"format_instructions": parser_podcast.get_format_instructions()}
+        partial_variables={"format_instructions": parser.get_format_instructions()}
     )
     summary_text = state["summary_text"]
     prompt = chat_prompt_podcast.invoke({"summary_text": summary_text, "tone": "informative"})
+    # llm_out = llm.invoke(prompt)
+    # parsed = parser_podcast.invoke(llm_out)
     llm_out = llm.invoke(prompt)
-    parsed = parser_podcast.invoke(llm_out)
+    cleaned_llm_out = clean_markdown_output(llm_out)
+    parsed = parser.invoke(cleaned_llm_out)
     
     return {"convo":parsed}
 
@@ -195,6 +207,8 @@ def get_data(state):
     - Give the text in markdown format.
     - Each slide should have rich information content, summarizing the information related to the particular slide heading.
     - Also keep in mind that the text for each slide should not be too lengthy, and should be concise and to the point.
+    - Do not format the output in markdown, do not use triple backticks (` ``` `) or JSON code blocks.
+    Ensure that the response is a valid JSON object that follows the expected schema.
 
     {format_instructions}
     """
@@ -209,13 +223,13 @@ def get_data(state):
         messages=[system_message, human_message],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
+    prompt = chat_prompt.invoke({"extracted_text": extracted_text})
     # Invoke LLM with structured output
-    chain = chat_prompt | llm | parser
-
-    # Parse structured output into Pydantic model
-    ppt_object = chain.invoke({"extracted_text":extracted_text})
+    llm_out = llm.invoke(prompt)
+    cleaned_llm_out = clean_markdown_output(llm_out)
+    parsed = parser.invoke(cleaned_llm_out)
     
-    return {"ppt_object": ppt_object}
+    return {"ppt_object": parsed}
 
 builder = StateGraph(ResPaperExtractState)
 
