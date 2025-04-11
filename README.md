@@ -1,19 +1,11 @@
-# mined_2025
+# 📄 Paper2x - Demo Preview
 
-A new Flutter project.
+Welcome to the **Paper2x** project!  
+This tool aims to simplify your academic and documentation workflow.
 
-## Getting Started
+🚀 **See It In Action**  
+To check out the demo in action, click the link below:
 
-This project is a starting point for a Flutter application.
+🔗 [Click here to view the Paper2x demo](https://drive.google.com/file/d/111jtR-kV5f7JhN7nkKRmWIBUXsK9gKzO/view?usp=sharing)
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-
-This should only be reflected on server....
+---
